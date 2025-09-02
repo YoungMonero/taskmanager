@@ -1,41 +1,39 @@
-var createError = require('http-errors');
-var express = require('express');
-var path = require('path');
-var cookieParser = require('cookie-parser');
-var logger = require('morgan');
+import dotenv from 'dotenv';
+import express from 'express';
+import cors from 'cors';
+import rateLimit from 'express-rate-limit';
+import swaggerUi from 'swagger-ui-express';
+import specs from './src/config/swagger.js';
+import authRoutes from './src/routes/authroutes.js';
+import taskRoutes from './src/routes/taskroute.js';
+import errorHandler from './src/middleware/errorhandler.js';
 
-var indexRouter = require('./routes/index');
-var usersRouter = require('./routes/users');
+// Load models to sync DB
+import './src/models/index.js';
 
-var app = express();
+dotenv.config();
 
-// view engine setup
-app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'jade');
+const app = express();
 
-app.use(logger('dev'));
+app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
-app.use(cookieParser());
-app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/', indexRouter);
-app.use('/users', usersRouter);
-
-// catch 404 and forward to error handler
-app.use(function(req, res, next) {
-  next(createError(404));
+// Rate Limiting
+const limiter = rateLimit({
+  windowMs: process.env.RATE_LIMIT_WINDOW_MS,
+  max: process.env.RATE_LIMIT_MAX,
+  message: 'Too many requests, please try again later.',
 });
+app.use(limiter);
 
-// error handler
-app.use(function(err, req, res, next) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/tasks', taskRoutes);
 
-  // render the error page
-  res.status(err.status || 500);
-  res.render('error');
-});
+// Swagger Docs
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 
-module.exports = app;
+// Centralized Error Handler
+app.use(errorHandler);
+
+export default app;
